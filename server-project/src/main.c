@@ -204,10 +204,10 @@ int main(int argc, char *argv[]) {
         int invalid_chars_found = 0;
                 for (int k = 0; req.city[k] != '\0'; k++) {
                     // Accetta solo lettere e spazi. Rifiuta tutto il resto
-                    if (!isalpha((unsigned char)req.city[k]) && req.city[k] != ' ') {
-                        invalid_chars_found = 1;
-                        break;
-                    }
+                	if (!isalnum((unsigned char)req.city[k]) && req.city[k] != ' ') {
+                	    invalid_chars_found = 1;
+                	    break;
+                	}
                 }
 
                 //Validazione TIPO richiesto
@@ -218,7 +218,7 @@ int main(int argc, char *argv[]) {
                 }
                 //Validazione SINTASSI Città
                 else if (invalid_chars_found) {
-                    res.status = 1;
+                    res.status = 2;
                     res.type = '\0';
                 }
                 //Validazione DISPONIBILITÀ Città
