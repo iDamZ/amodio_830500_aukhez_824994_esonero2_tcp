@@ -6,7 +6,7 @@
  * This file contains the boilerplate code for a UDP server
  * portable across Windows, Linux, and macOS.
  */
-
+#define _POSIX_C_SOURCE 200112L
 #if defined WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
