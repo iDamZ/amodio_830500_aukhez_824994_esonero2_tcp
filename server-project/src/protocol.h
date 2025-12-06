@@ -16,32 +16,51 @@
  * ============================================================================
  */
 
-// #define ...
+// Indirizzo IP di default del server
 #define SERVER_IP "127.0.0.1"
 
+// Porta UDP di default del server
 #define SERVER_PORT 56700
+
+// Questo è un retaggio del TCP, in UDP non ha effetto.
+// Lo lascio come nota, ma in pratica non viene usato dal codice UDP.
 #define QLEN 6
+
 /*
  * ============================================================================
  * PROTOCOL DATA STRUCTURES
  * ============================================================================
  */
 
-// Weather request and response structures 
-// Messaggio di Richiesta (Client -> Server)
+// Struttura per la Richiesta (Client -> Server)
 typedef struct {
-    char type;        // 't', 'h', 'w', 'p'
-    char city[64];    // Nome città (stringa null-terminated)
+    // Tipo di dato meteo richiesto:
+    // 't' = Temperature (Temperatura)
+    // 'h' = Humidity (Umidità)
+    // 'w' = Wind (Vento)
+    // 'p' = Pressure (Pressione)
+    char type;
+
+    // Nome della città richiesta (stringa terminata da null)
+    char city[64];
 } weather_request_t;
 
-// Messaggio di Risposta (Server -> Client)
+// Struttura per la Risposta (Server -> Client)
 typedef struct {
-    unsigned int status;  // 0=Ok, 1=No City, 2=Invalid
-    char type;            // Eco del tipo
-    float value;          // Valore numerico
+    // Codice di stato della risposta:
+    // 0 = Successo (Ok)
+    // 1 = Città non disponibile (No City)
+    // 2 = Richiesta non valida (tipo errato) (Invalid)
+    unsigned int status;
+
+    // Eco del tipo di dato richiesto (o '\0' in caso di errore)
+    char type;
+
+    // Valore numerico della misurazione (float)
+    float value;
 } weather_response_t;
 
-// Lista delle città supportate (totale 10)
+// Lista delle città supportate dal server (totale 10)
 const char *VALID_CITIES[] = {
     "bari", "roma", "milano", "napoli", "torino",
     "palermo", "genova", "bologna", "firenze", "venezia"
@@ -50,11 +69,10 @@ const int NUM_CITIES = 10;
 
 /*
  * ============================================================================
- * FUNCTION PROTOTYPES
+ * FUNCTION PROTOTYPES (Dichiarazioni di funzione utilizzate nel main.c)
  * ============================================================================
  */
 
-// Add here the signatures of the functions you implement
 int are_strings_equal_case_insensitive(const char *s1, const char *s2);
 int is_city_valid(const char *city);
 void format_city_name(char *city);
