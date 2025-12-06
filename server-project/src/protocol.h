@@ -25,7 +25,7 @@
 // Questo è un retaggio del TCP, in UDP non ha effetto.
 // Lo lascio come nota, ma in pratica non viene usato dal codice UDP.
 #define QLEN 6
-
+#define BUFFER_SIZE 512
 /*
  * ============================================================================
  * PROTOCOL DATA STRUCTURES

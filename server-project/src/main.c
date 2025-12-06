@@ -34,7 +34,6 @@
 
 #define NO_ERROR 0
 // Dimensione massima del messaggio (dovrebbe essere sufficiente per il nostro protocollo)
-#define MAX_MSG_SIZE 512
 
 #if defined WIN32
     typedef int socklen_t_w;
