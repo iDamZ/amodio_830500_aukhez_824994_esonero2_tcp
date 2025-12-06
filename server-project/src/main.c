@@ -184,8 +184,7 @@ int main(int argc, char *argv[]) {
         req.city[63] = '\0';
 
         char client_host[NI_MAXHOST];
-                if (getnameinfo((struct sockaddr*)&client_address, client_len,
-                                client_host, sizeof(client_host), NULL, 0, 0) != 0) {
+                if (getnameinfo((struct sockaddr*)&client_address, client_len, client_host, sizeof(client_host), NULL, 0, 0) != 0) {
                     strcpy(client_host, inet_ntoa(client_address.sin_addr));
                 }
 
@@ -219,7 +218,7 @@ int main(int argc, char *argv[]) {
                 }
                 //Validazione SINTASSI Città
                 else if (invalid_chars_found) {
-                    res.status = 2;
+                    res.status = 1;
                     res.type = '\0';
                 }
                 //Validazione DISPONIBILITÀ Città
