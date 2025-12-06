@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 
 	char *server_ip = SERVER_IP;
 	   int port = SERVER_PORT;
-	char* input_string = NULL; // Stringa da inviare
+	char* input_string = NULL; //Stringa da inviare
 
 	for (int i = 1; i < argc; i++) {
 	        if (strcmp(argv[i], "-s") == 0 && (i + 1) < argc) {
@@ -60,22 +60,37 @@ int main(int argc, char *argv[]) {
 	        return -1;
 	    }
 
-	        // Esempio: "t bari" -> type='t', city="bari"
+	    // Esempio: "t bari" -> type='t', city="bari"
+
+	    //Controlli vari
+	    if (strchr(input_string, '\t') != NULL) {
+	    		fprintf(stderr, "Errore: La richiesta contiene caratteri di tabulazione non ammessi.\n");
+	    		return -1;
+	    	}
+
+
+	    if (input_string[1] != ' ' && input_string[1] != '\0') {
+	    		fprintf(stderr, "Errore: Il tipo di richiesta deve essere un singolo carattere.\n");
+	    		return -1;
+	    	}
+
+	    //Identificazione inizio nome città
+	    char *city_start = input_string + 1;
+	    if (*city_start == ' ') {
+	    		city_start++; //Salta lo spazio separatore se presente
+	    	}
+
+	    // La città deve entrare in req.city
+	    if (strlen(city_start) > 63) {
+	    		fprintf(stderr, "Errore: Il nome della citta' supera la lunghezza massima consentita (63 caratteri).\n");
+	    		return -1;
+	    	}
+
+	    // Preparazione della struttura richiesta
 	    weather_request_t req;
-	        memset(&req, 0, sizeof(req));
-	        req.type = input_string[0];
-
-	        if (strlen(input_string) > 1) {
-	            char *city_start = input_string + 1;
-	            // Se c'è uno spazio subito dopo il tipo, lo saltiamo
-	            if (*city_start == ' ') {
-	                city_start++;
-	            }
-	            strncpy(req.city, city_start, 63);
-	        } else {
-	            req.city[0] = '\0';
-	        }
-
+	    memset(&req, 0, sizeof(req));
+	    req.type = input_string[0];
+	    strcpy(req.city, city_start);
 
 #if defined WIN32
 	// Initialize Winsock
@@ -103,13 +118,22 @@ int main(int argc, char *argv[]) {
 
 	// TODO: Configure server address
 
+	struct hostent *he;
 	memset(&echoServAddr, 0, sizeof(echoServAddr));
-	    echoServAddr.sin_family = PF_INET;
-	    echoServAddr.sin_port = htons(port);
-	    echoServAddr.sin_addr.s_addr = inet_addr(server_ip);
+	echoServAddr.sin_family = PF_INET;
+	echoServAddr.sin_port = htons(port);
+
+	if ((echoServAddr.sin_addr.s_addr = inet_addr(server_ip)) == INADDR_NONE) {
+			if ((he = gethostbyname(server_ip)) == NULL) {
+				fprintf(stderr, "Errore: convertire l'host %s\n", server_ip);
+				closesocket(my_socket);
+				clearwinsock();
+				return -1;
+			}
+			memcpy(&echoServAddr.sin_addr, he->h_addr_list[0], he->h_length);
+		}
 
 	// TODO: Implement UDP communication logic
-
 
 	    char buffer[BUFFER_SIZE];
 	    int msg_len = 0;
@@ -117,7 +141,6 @@ int main(int argc, char *argv[]) {
 	    msg_len++;
 	    strcpy(buffer + 1, req.city);
 	    msg_len += strlen(req.city) + 1;
-
 
 
 	    if (sendto(my_socket, buffer, msg_len, 0, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr)) != msg_len) {
@@ -159,22 +182,21 @@ int main(int argc, char *argv[]) {
 
 	//nome server
 	char host_name[NI_MAXHOST];
-	    if (getnameinfo((struct sockaddr*)&fromAddr, sizeof(fromAddr),
-	                    host_name, sizeof(host_name), NULL, 0, 0) != 0) {
-	        strcpy(host_name, inet_ntoa(fromAddr.sin_addr));
-	    }
+		if (getnameinfo((struct sockaddr*)&fromAddr, sizeof(fromAddr),host_name, sizeof(host_name), NULL, 0, 0) != 0) {
+			strcpy(host_name, inet_ntoa(fromAddr.sin_addr));
+		}
+		char *ip_str = inet_ntoa(fromAddr.sin_addr);
 
-
+	//Normalizzazione Nome citta
 	if (strlen(req.city) > 0) {
 	            req.city[0] = toupper(req.city[0]);
 	            for(int k=1; req.city[k]; k++) req.city[k] = tolower(req.city[k]);
 	        }
 
 	//Stampa Formattata
-	printf("Ricevuto risultato dal server %s. ", server_ip);
 	if (resp.status == 0) {
-
-	        switch (req.type) {
+		printf("Ricevuto risultato dal server %s (ip %s). ", host_name, ip_str);
+		switch (req.type) {
 	            case 't':
 	                printf("%s: Temperatura = %.1f°C\n", req.city, resp.value);
 	                break;
@@ -192,13 +214,13 @@ int main(int argc, char *argv[]) {
 	                printf("Tipo sconosciuto\n");
 	                break;
 	        }
-	    } else if (resp.status == 1) {
-	        // ERRORE: Città non disponibile
-	        printf("Città non disponibile\n");
-	    } else {
-	        // ERRORE: Richiesta non valida (status 2 o altro)
-	        printf("Richiesta non valida\n");
-	    }
+	} else if (resp.status == 1) {
+			// ERRORE: Città non disponibile
+			printf("Ricevuto risultato dal server %s (ip %s). Città non disponibile\n", host_name, ip_str);
+	} else {
+			// ERRORE: Richiesta non valida (status 2 o altro)
+			printf("Ricevuto risultato dal server %s (ip %s). Richiesta non valida\n", host_name, ip_str);
+	}
 
 	// TODO: Close socket
 	// closesocket(my_socket);

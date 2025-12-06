@@ -27,10 +27,6 @@
 #include <time.h>
 #include <ctype.h>
 
-// Assumi che protocol.h definisca:
-// - weather_request_t, weather_response_t
-// - SERVER_IP, SERVER_PORT
-// - NUM_CITIES, VALID_CITIES[]
 #include "protocol.h"
 
 #define NO_ERROR 0
@@ -67,15 +63,15 @@ int is_city_valid(const char *city) {
     return 0;
 }
 void format_city_name(char *city) {
-    // Controllo di sicurezza per stringhe nulle o vuote
+    //Controllo di sicurezza per stringhe nulle o vuote
     if (city == NULL || city[0] == '\0') {
         return;
     }
 
-    // 1. Trasforma la prima lettera in Maiuscolo
+    //Trasforma la prima lettera in Maiuscolo
     city[0] = toupper((unsigned char)city[0]);
 
-    // 2. Trasforma tutte le lettere successive in minuscolo
+    //Trasforma tutte le lettere successive in minuscolo
     for (int i = 1; city[i] != '\0'; i++) {
         city[i] = tolower((unsigned char)city[i]);
     }
@@ -126,7 +122,7 @@ int main(int argc, char *argv[]) {
 
 	int my_socket;
 
-	// **MODIFICA 1: Creazione Socket UDP**
+	//Creazione Socket UDP
 	my_socket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (my_socket < 0) {
 	    perror("socket creation failed.\n");
@@ -134,28 +130,25 @@ int main(int argc, char *argv[]) {
 	    return -1;
 	}
 
-	// **MODIFICA 2: Configurazione indirizzo Server**
+	//Configurazione indirizzo Server
 	struct sockaddr_in sad; // Server Address Descriptor
 	memset(&sad, 0, sizeof(sad));
 	sad.sin_family = AF_INET;
 	sad.sin_addr.s_addr = inet_addr(server_ip);
 	sad.sin_port = htons(port);
 
-	// **MODIFICA 3: Bind del socket**
+	//Bind del socket
 	if (bind(my_socket, (struct sockaddr*)&sad, sizeof(sad)) < 0) {
 	    perror("bind() failed.\n");
 	    closesocket(my_socket);
 	    clearwinsock();
 	    return -1;
 	}
-
-	// Rimosse listen() e accept() specifiche di TCP
-
 	printf("Weather UDP server running on IP %s port %d...\n", server_ip, port);
 
 
-	// **MODIFICA 4: Ciclo di Gestione Richieste (UDP)**
-    struct sockaddr_in client_address; // Client Address Descriptor
+	//Ciclo di Gestione Richieste (UDP)
+    struct sockaddr_in client_address;
     socklen_t_w client_len;
     char buffer[BUFFER_SIZE];
     int bytes_received;
@@ -163,12 +156,12 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         client_len = sizeof(client_address);
-        // Uso di recvfrom per ricevere datagrammi UDP
+        //Uso di recvfrom per ricevere datagrammi UDP
         bytes_received = recvfrom(my_socket, buffer, BUFFER_SIZE, 0,
                                           (struct sockaddr*)&client_address, &client_len);
 
         if (bytes_received <= 0) {
-            // Un errore di ricezione (diverso da chiusura connessione che non si applica in UDP)
+            //Un errore di ricezione (diverso da chiusura connessione che non si applica in UDP)
             perror("recvfrom() failed or connection closed (shouldn't happen in UDP)");
             continue;
         }
@@ -193,25 +186,38 @@ int main(int argc, char *argv[]) {
 
 
         weather_response_t res;
-        res.status = 0; // default = success
+        res.status = 0;
         res.type = req.type;
         res.value = 0.0f;
 
         // Validazione tipo richiesto
-        if (req.type != 't' && req.type != 'h' &&
-                    req.type != 'w' && req.type != 'p') {
-
-                    res.status = 2; // richiesta non valida (tipo errato)
-                    res.type = '\0'; // Come da specifica errori
+        int invalid_chars_found = 0;
+                for (int k = 0; req.city[k] != '\0'; k++) {
+                    // Accetta solo lettere e spazi. Rifiuta tutto il resto
+                    if (!isalpha((unsigned char)req.city[k]) && req.city[k] != ' ') {
+                        invalid_chars_found = 1;
+                        break;
+                    }
                 }
-                // Validazione Città (Vuota o Non in lista)
+
+                //Validazione TIPO richiesto
+                if (req.type != 't' && req.type != 'h' &&
+                    req.type != 'w' && req.type != 'p') {
+                    res.status = 2;
+                    res.type = '\0';
+                }
+                //Validazione SINTASSI Città
+                else if (invalid_chars_found) {
+                    res.status = 2;
+                    res.type = '\0';
+                }
+                //Validazione DISPONIBILITÀ Città
                 else if (strlen(req.city) == 0 || !is_city_valid(req.city)) {
-                    res.status = 1; // città non disponibile
-                    res.type = '\0'; // Come da specifica errori
+                    res.status = 1;
+                    res.type = '\0';
                 }
                 else {
-                	format_city_name(req.city);
-                    // Tipo valido E Città valida -> genera valore
+                    format_city_name(req.city);
                     switch (req.type) {
                         case 't': res.value = get_temperature(); break;
                         case 'h': res.value = get_humidity();    break;
@@ -220,27 +226,23 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-
-
-        // **Invio risposta (UDP)**
-
         int offset = 0;
                 uint32_t net_status;
                 uint32_t temp_val_int;
                 uint32_t net_val_int;
 
-                // 1. Status (convertito in Network Byte Order)
+                //Status (convertito in Network Byte Order)
                 net_status = htonl(res.status);
                 memcpy(buffer + offset, &net_status, sizeof(uint32_t));
                 offset += sizeof(uint32_t);
 
-                // 2. Type (1 byte, nessuna conversione)
+                //Type (1 byte, nessuna conversione)
                 memcpy(buffer + offset, &res.type, sizeof(char));
                 offset += sizeof(char);
 
-                // 3. Value (Float convertito bit-a-bit in int, poi in Network Byte Order)
-                memcpy(&temp_val_int, &res.value, sizeof(float)); // Float -> Int bits
-                net_val_int = htonl(temp_val_int);                // Int Host -> Int Network
+                //Value (Float convertito bit-a-bit in int, poi in Network Byte Order)
+                memcpy(&temp_val_int, &res.value, sizeof(float));
+                net_val_int = htonl(temp_val_int);
                 memcpy(buffer + offset, &net_val_int, sizeof(uint32_t));
                 offset += sizeof(uint32_t);
 

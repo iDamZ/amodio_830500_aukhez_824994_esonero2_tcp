@@ -22,10 +22,7 @@
 // Porta UDP di default del server
 #define SERVER_PORT 56700
 
-// Questo è un retaggio del TCP, in UDP non ha effetto.
-// Lo lascio come nota, ma in pratica non viene usato dal codice UDP.
-#define QLEN 6
-// Dimensione massima del messaggio (dovrebbe essere sufficiente per il nostro protocollo)
+// Dimensione massima del messaggio
 #define BUFFER_SIZE 512
 /*
  * ============================================================================
