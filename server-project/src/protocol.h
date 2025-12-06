@@ -25,6 +25,7 @@
 // Questo è un retaggio del TCP, in UDP non ha effetto.
 // Lo lascio come nota, ma in pratica non viene usato dal codice UDP.
 #define QLEN 6
+// Dimensione massima del messaggio (dovrebbe essere sufficiente per il nostro protocollo)
 #define BUFFER_SIZE 512
 /*
  * ============================================================================

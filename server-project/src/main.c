@@ -8,7 +8,8 @@
  */
 
 #if defined WIN32
-#include <winsock.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #else
 #include <string.h>
 #include <unistd.h>
@@ -33,7 +34,6 @@
 #include "protocol.h"
 
 #define NO_ERROR 0
-// Dimensione massima del messaggio (dovrebbe essere sufficiente per il nostro protocollo)
 
 #if defined WIN32
     typedef int socklen_t_w;
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
 	int my_socket;
 
 	// **MODIFICA 1: Creazione Socket UDP**
-	my_socket = socket(PF_INET, **SOCK_DGRAM**, **IPPROTO_UDP**);
+	my_socket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (my_socket < 0) {
 	    perror("socket creation failed.\n");
 	    clearwinsock();
@@ -157,16 +157,15 @@ int main(int argc, char *argv[]) {
 	// **MODIFICA 4: Ciclo di Gestione Richieste (UDP)**
     struct sockaddr_in client_address; // Client Address Descriptor
     socklen_t_w client_len;
-    char buffer[MAX_MSG_SIZE];
+    char buffer[BUFFER_SIZE];
     int bytes_received;
 
     while (1) {
-        printf("\nWaiting for a datagram...\n");
 
         client_len = sizeof(client_address);
         // Uso di recvfrom per ricevere datagrammi UDP
-        bytes_received = recvfrom(my_socket, buffer, sizeof(weather_request_t), 0,
-                                  (struct sockaddr*)&client_address, &client_len);
+        bytes_received = recvfrom(my_socket, buffer, BUFFER_SIZE, 0,
+                                          (struct sockaddr*)&client_address, &client_len);
 
         if (bytes_received <= 0) {
             // Un errore di ricezione (diverso da chiusura connessione che non si applica in UDP)
@@ -174,39 +173,46 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        if (bytes_received != sizeof(weather_request_t)) {
-            printf("Received datagram of incorrect size (%d bytes). Ignoring.\n", bytes_received);
-            continue;
-        }
+        //costruiamo la struct leggendo il buffer
+        weather_request_t req;
+        req.type = buffer[0];
+        strncpy(req.city, buffer + 1, 63);
+        req.city[63] = '\0';
 
-        // La richiesta è contenuta nel buffer e viene castata alla struttura
-        weather_request_t *req = (weather_request_t *)buffer;
+        char client_host[NI_MAXHOST];
+                if (getnameinfo((struct sockaddr*)&client_address, client_len,
+                                client_host, sizeof(client_host), NULL, 0, 0) != 0) {
+                    strcpy(client_host, inet_ntoa(client_address.sin_addr));
+                }
 
-        printf("Request received from: %s:%d\n", inet_ntoa(client_address.sin_addr),
-               ntohs(client_address.sin_port));
+                printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
+                       client_host,
+                       inet_ntoa(client_address.sin_addr),
+                       req.type,
+                       req.city);
 
 
         weather_response_t res;
         res.status = 0; // default = success
-        res.type = req->type;
+        res.type = req.type;
         res.value = 0.0f;
 
         // Validazione tipo richiesto
-        if (req->type != 't' && req->type != 'h' &&
-                    req->type != 'w' && req->type != 'p') {
+        if (req.type != 't' && req.type != 'h' &&
+                    req.type != 'w' && req.type != 'p') {
 
                     res.status = 2; // richiesta non valida (tipo errato)
                     res.type = '\0'; // Come da specifica errori
                 }
                 // Validazione Città (Vuota o Non in lista)
-                else if (strlen(req->city) == 0 || !is_city_valid(req->city)) {
+                else if (strlen(req.city) == 0 || !is_city_valid(req.city)) {
                     res.status = 1; // città non disponibile
                     res.type = '\0'; // Come da specifica errori
                 }
                 else {
-                	format_city_name(req->city);
+                	format_city_name(req.city);
                     // Tipo valido E Città valida -> genera valore
-                    switch (req->type) {
+                    switch (req.type) {
                         case 't': res.value = get_temperature(); break;
                         case 'h': res.value = get_humidity();    break;
                         case 'w': res.value = get_wind();        break;
@@ -214,14 +220,36 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-        // **Invio risposta (UDP)**
-        // Uso di sendto per inviare datagrammi UDP all'indirizzo del client salvato in client_address
-        if (sendto(my_socket, (char *)&res, sizeof(res), 0,
-                   (struct sockaddr *)&client_address, client_len) != sizeof(res)) {
-            perror("sendto() sent a different number of bytes than expected");
-        }
 
-        printf("Response sent to client.\n");
+
+        // **Invio risposta (UDP)**
+
+        int offset = 0;
+                uint32_t net_status;
+                uint32_t temp_val_int;
+                uint32_t net_val_int;
+
+                // 1. Status (convertito in Network Byte Order)
+                net_status = htonl(res.status);
+                memcpy(buffer + offset, &net_status, sizeof(uint32_t));
+                offset += sizeof(uint32_t);
+
+                // 2. Type (1 byte, nessuna conversione)
+                memcpy(buffer + offset, &res.type, sizeof(char));
+                offset += sizeof(char);
+
+                // 3. Value (Float convertito bit-a-bit in int, poi in Network Byte Order)
+                memcpy(&temp_val_int, &res.value, sizeof(float)); // Float -> Int bits
+                net_val_int = htonl(temp_val_int);                // Int Host -> Int Network
+                memcpy(buffer + offset, &net_val_int, sizeof(uint32_t));
+                offset += sizeof(uint32_t);
+
+
+        // Uso di sendto per inviare datagrammi UDP all'indirizzo del client salvato in client_address
+           if (sendto(my_socket, buffer, offset, 0,
+        		   (struct sockaddr *)&client_address, client_len) != offset) {
+                 		perror("sendto() sent a different number of bytes than expected");
+           }
     }
 
 	closesocket(my_socket);

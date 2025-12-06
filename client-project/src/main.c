@@ -8,7 +8,8 @@
  */
 
 #if defined WIN32
-#include <winsock.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #else
 #include <string.h>
 #include <unistd.h>
@@ -24,6 +25,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h> /* for memset() */
+#include <ctype.h>
 #include "protocol.h"
 
 #define NO_ERROR 0
@@ -88,7 +90,7 @@ int main(int argc, char *argv[]) {
 	int my_socket;
 	struct sockaddr_in echoServAddr;
 	struct sockaddr_in fromAddr;
-	unsigned int fromSize;
+	int fromSize;
 	weather_response_t resp;
 	int respStringLen;
 
@@ -108,7 +110,17 @@ int main(int argc, char *argv[]) {
 
 	// TODO: Implement UDP communication logic
 
-	    if (sendto(my_socket, (char*)&req, sizeof(req), 0, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr)) != sizeof(req)) {
+
+	    char buffer[BUFFER_SIZE];
+	    int msg_len = 0;
+	    buffer[0] = req.type;
+	    msg_len++;
+	    strcpy(buffer + 1, req.city);
+	    msg_len += strlen(req.city) + 1;
+
+
+
+	    if (sendto(my_socket, buffer, msg_len, 0, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr)) != msg_len) {
 	            perror("sendto() sent different number of bytes than expected");
 	            closesocket(my_socket);
 	            clearwinsock();
@@ -116,7 +128,7 @@ int main(int argc, char *argv[]) {
 	        }
 
 	fromSize = sizeof(fromAddr);
-	respStringLen = recvfrom(my_socket, (char*)&resp, sizeof(resp), 0, (struct sockaddr*)&fromAddr, &fromSize);
+	respStringLen = recvfrom(my_socket, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&fromAddr, &fromSize);
 
 	if (respStringLen < 0) {
 	        perror("recvfrom() failed");
@@ -133,8 +145,33 @@ int main(int argc, char *argv[]) {
 	        return -1;
 	    }
 
+	//estrazione risposta in byte e conversione
+	uint32_t net_status;
+	uint32_t net_val_int;
+	uint32_t host_val_int;
+
+	memcpy(&net_status, buffer, sizeof(uint32_t));
+	resp.status = ntohl(net_status);
+	resp.type = buffer[sizeof(uint32_t)];
+	memcpy(&net_val_int, buffer + sizeof(uint32_t) + sizeof(char), sizeof(uint32_t));
+	host_val_int = ntohl(net_val_int);
+	memcpy(&resp.value, &host_val_int, sizeof(float));
+
+	//nome server
+	char host_name[NI_MAXHOST];
+	    if (getnameinfo((struct sockaddr*)&fromAddr, sizeof(fromAddr),
+	                    host_name, sizeof(host_name), NULL, 0, 0) != 0) {
+	        strcpy(host_name, inet_ntoa(fromAddr.sin_addr));
+	    }
+
+
+	if (strlen(req.city) > 0) {
+	            req.city[0] = toupper(req.city[0]);
+	            for(int k=1; req.city[k]; k++) req.city[k] = tolower(req.city[k]);
+	        }
+
 	//Stampa Formattata
-	printf("Ricevuto risultato dal server ip %s. ", server_ip);
+	printf("Ricevuto risultato dal server %s. ", server_ip);
 	if (resp.status == 0) {
 
 	        switch (req.type) {
