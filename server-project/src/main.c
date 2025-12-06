@@ -132,10 +132,21 @@ int main(int argc, char *argv[]) {
 
 	//Configurazione indirizzo Server
 	struct sockaddr_in sad; // Server Address Descriptor
-	memset(&sad, 0, sizeof(sad));
-	sad.sin_family = AF_INET;
-	sad.sin_addr.s_addr = inet_addr(server_ip);
-	sad.sin_port = htons(port);
+	    memset(&sad, 0, sizeof(sad));
+	    sad.sin_family = AF_INET;
+	    sad.sin_port = htons(port);
+
+	    // Gestione risoluzione DNS (supporta sia IP che "localhost")
+	    if ((sad.sin_addr.s_addr = inet_addr(server_ip)) == INADDR_NONE) {
+	        struct hostent *he;
+	        if ((he = gethostbyname(server_ip)) == NULL) {
+	            fprintf(stderr, "Errore: impossibile risolvere l'host server %s\n", server_ip);
+	            closesocket(my_socket);
+	            clearwinsock();
+	            return -1;
+	        }
+	        memcpy(&sad.sin_addr, he->h_addr_list[0], he->h_length);
+	    }
 
 	//Bind del socket
 	if (bind(my_socket, (struct sockaddr*)&sad, sizeof(sad)) < 0) {
