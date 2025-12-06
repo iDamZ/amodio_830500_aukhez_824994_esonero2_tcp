@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <string.h> /* for memset() */
 #include "protocol.h"
 
 #define NO_ERROR 0
@@ -61,6 +62,7 @@ int main(int argc, char *argv[]) {
 	    weather_request_t req;
 	        memset(&req, 0, sizeof(req));
 	        req.type = input_string[0];
+
 	        if (strlen(input_string) > 1) {
 	            char *city_start = input_string + 1;
 	            // Se c'è uno spazio subito dopo il tipo, lo saltiamo
@@ -84,69 +86,53 @@ int main(int argc, char *argv[]) {
 #endif
 
 	int my_socket;
+	struct sockaddr_in echoServAddr;
+	struct sockaddr_in fromAddr;
+	unsigned int fromSize;
+	weather_response_t resp;
+	int respStringLen;
 
 	// TODO: Create UDP socket
-
-	my_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (my_socket < 0) {
-	perror("socket creation failed.\n");
-	closesocket(my_socket);
-	clearwinsock();
-	return -1;
-	}
-
-	// TODO: Configure server address
-
-	struct sockaddr_in sad;
-	memset(&sad, 0, sizeof(sad));
-	sad.sin_family = AF_INET;
-	sad.sin_addr.s_addr = inet_addr(server_ip);
-	sad.sin_port = htons(port);
-
-	// TODO: Implement UDP communication logic
-
-	if (connect(my_socket, (struct sockaddr *)&sad, sizeof(sad))< 0)
-	{
-	perror( "Failed to connect.\n" );
-	closesocket(my_socket);
-	clearwinsock();
-	return -1;
-	}
-
-	if (send(my_socket, (char *)&req, sizeof(req), 0) < 0) {
-	        perror("Send failed");
-	        closesocket(my_socket);
+	if ((my_socket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+	        perror("socket() failed");
+	        clearwinsock();
 	        return -1;
 	    }
 
+	// TODO: Configure server address
 
+	memset(&echoServAddr, 0, sizeof(echoServAddr));
+	    echoServAddr.sin_family = PF_INET;
+	    echoServAddr.sin_port = htons(port);
+	    echoServAddr.sin_addr.s_addr = inet_addr(server_ip);
 
-	int bytes_rcvd;
-	int total_bytes_rcvd = 0;
-	weather_response_t resp;
-	while (total_bytes_rcvd < (int)sizeof(resp)) {
-	        bytes_rcvd = recv(my_socket, (char *)&resp + total_bytes_rcvd, (int)sizeof(resp) - total_bytes_rcvd, 0);
+	// TODO: Implement UDP communication logic
 
-	        if (bytes_rcvd == 0) {
-	            // Connessione chiusa dal server
-	            if (total_bytes_rcvd < (int)sizeof(resp)) {
-	                 perror("Connessione chiusa prematuramente");
-	                 closesocket(my_socket);
-	                 clearwinsock();
-	                 return -1;
-	            } else {
-	                 break;
-	            }
-	        }
-	        else if (bytes_rcvd < 0) {
-	            perror("Receive failed");
+	    if (sendto(my_socket, (char*)&req, sizeof(req), 0, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr)) != sizeof(req)) {
+	            perror("sendto() sent different number of bytes than expected");
 	            closesocket(my_socket);
 	            clearwinsock();
 	            return -1;
 	        }
 
-	        total_bytes_rcvd += bytes_rcvd;
+	fromSize = sizeof(fromAddr);
+	respStringLen = recvfrom(my_socket, (char*)&resp, sizeof(resp), 0, (struct sockaddr*)&fromAddr, &fromSize);
+
+	if (respStringLen < 0) {
+	        perror("recvfrom() failed");
+	        closesocket(my_socket);
+	        clearwinsock();
+	        return -1;
 	    }
+
+
+	if (echoServAddr.sin_addr.s_addr != fromAddr.sin_addr.s_addr) {
+	        fprintf(stderr, "Error: received a packet from unknown source.\n");
+	        closesocket(my_socket);
+	        clearwinsock();
+	        return -1;
+	    }
+
 	//Stampa Formattata
 	printf("Ricevuto risultato dal server ip %s. ", server_ip);
 	if (resp.status == 0) {
@@ -179,7 +165,6 @@ int main(int argc, char *argv[]) {
 
 	// TODO: Close socket
 	// closesocket(my_socket);
-
 
 	printf("Client terminated.\n");
 
