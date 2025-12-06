@@ -20,6 +20,9 @@
 #define SERVER_PORT 56700  // Server port (change if needed)
 #define SERVER_IP "127.0.0.1"  // Server port (change if needed)
 #define BUFFER_SIZE 512    // Buffer size for messages
+#ifndef NI_MAXHOST
+#define NI_MAXHOST 1025
+#endif
 /*
  * ============================================================================
  * PROTOCOL DATA STRUCTURES

@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
 	int my_socket;
 	struct sockaddr_in echoServAddr;
 	struct sockaddr_in fromAddr;
-	int fromSize;
+	socklen_t fromSize;
 	weather_response_t resp;
 	int respStringLen;
 

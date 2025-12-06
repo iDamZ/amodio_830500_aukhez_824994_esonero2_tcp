@@ -24,6 +24,10 @@
 
 // Dimensione massima del messaggio
 #define BUFFER_SIZE 512
+
+#ifndef NI_MAXHOST
+#define NI_MAXHOST 1025
+#endif
 /*
  * ============================================================================
  * PROTOCOL DATA STRUCTURES
